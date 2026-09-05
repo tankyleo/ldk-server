@@ -216,8 +216,21 @@ See [Pagination](#pagination) below for how to page through results.
 | `SpliceNegotiated` | A channel splice was negotiated and the funding transaction is pending confirmation |
 | `SpliceNegotiationFailed` | A channel splice negotiation round failed                       |
 
-Events are broadcast to all connected subscribers. The server uses a bounded broadcast channel
-(capacity 1024). A slow subscriber that falls behind will miss events.
+> [!WARNING]
+> `SubscribeEvents` is a best-effort live notification stream. Events are not persisted for
+> subscribers, cannot be replayed after reconnecting, and have no client acknowledgement. Receipt
+> by the server's broadcast channel does not guarantee that a client received or processed an
+> event.
+
+Events are broadcast to all currently connected subscribers. The server uses a bounded broadcast
+channel (capacity 1024), so a slow subscriber that falls behind will miss events. Disconnected
+clients also miss events and receive only new events after reconnecting. If the server cannot read
+data required to construct an event, it logs the error and may skip that event so the event queue
+can continue processing.
+
+Treat events as notifications rather than authoritative history. After reconnecting, reconcile
+recoverable state with APIs such as `GetPaymentDetails`, `ListPayments`, `ListForwardedPayments`,
+and `ListChannels`. Some event-only fields cannot be recovered through these APIs.
 
 ### Metrics
 
@@ -256,9 +269,11 @@ Hodl invoices allow you to inspect and conditionally accept incoming payments:
     - **Reject an unexpected payment:** Call `Bolt11FailForId` with its payment ID. Reject duplicate
       and late payments instead of ignoring or claiming them.
 
-The payment is held in a pending state until you explicitly claim or fail it. **You must
-always handle each event.** If you do not, the HTLC will eventually time out. This can cause a
-force-closure of the channel.
+The payment is held in a pending state until you claim it, fail it, or its `claim_deadline` is
+reached. `PaymentClaimable` notifications are best-effort and are not replayed. If you miss the
+event or do not act before the deadline, LDK Node automatically fails the HTLC backward and the
+payment can no longer be claimed. Keep the subscriber healthy and resolve reported persistence
+errors before accepting further payments.
 
 ## Pagination
 

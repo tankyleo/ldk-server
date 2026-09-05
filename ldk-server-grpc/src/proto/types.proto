@@ -68,6 +68,52 @@ message Onchain {
 
   // The confirmation status of this payment.
   ConfirmationStatus status = 2;
+
+  // The classification of this transaction, if known.
+  //
+  // This will be unset for plain on-chain sends and records created before transaction
+  // classification was available.
+  TransactionType tx_type = 3;
+}
+
+// The classification of an on-chain transaction.
+message TransactionType {
+  oneof kind {
+    // A funding transaction establishing one or more new channels.
+    TransactionChannels funding = 1;
+
+    // A transaction cooperatively closing a channel.
+    TransactionChannel cooperative_close = 2;
+
+    // A transaction force-closing a channel.
+    TransactionChannel unilateral_close = 3;
+
+    // An anchor transaction CPFP fee-bumping a closing transaction.
+    TransactionChannel anchor_bump = 4;
+
+    // A transaction resolving an output spendable by both us and our counterparty.
+    TransactionChannel claim = 5;
+
+    // A transaction sweeping spendable outputs to the on-chain wallet.
+    TransactionChannels sweep = 6;
+
+    // An interactively-negotiated funding transaction, such as a splice.
+    TransactionChannels interactive_funding = 7;
+  }
+}
+
+// Channels associated with an on-chain transaction.
+message TransactionChannels {
+  repeated TransactionChannel channels = 1;
+}
+
+// A channel associated with an on-chain transaction.
+message TransactionChannel {
+  // The node ID of the channel counterparty.
+  string counterparty_node_id = 1;
+
+  // The channel ID.
+  string channel_id = 2;
 }
 
 message ConfirmationStatus {
@@ -228,13 +274,17 @@ message HtlcLocator {
   // The channel that the HTLC was sent or received on.
   string channel_id = 1;
 
+  // The amount, in milli-satoshis, of the HTLC that was sent or received.
+  // This can be unset for events serialized by LDK Node v0.7.0 and prior.
+  optional uint64 amount_msat = 2;
+
   // The `user_channel_id` for the channel.
   // This can be unset for older serialized events or if the payment was settled on-chain.
-  optional string user_channel_id = 2;
+  optional string user_channel_id = 3;
 
   // The node id of the counterparty for this HTLC.
   // This can be unset for older serialized events.
-  optional string node_id = 3;
+  optional string node_id = 4;
 }
 
 // A forwarded payment through our node.
@@ -270,7 +320,7 @@ message ForwardedPayment{
   // The final amount forwarded, in milli-satoshis, after the fee is deducted.
   //
   // The caveat described above the `total_fee_earned_msat` field applies here as well.
-  optional uint64 outbound_amount_forwarded_msat = 4;
+  uint64 outbound_amount_forwarded_msat = 4;
 
   // The set of incoming HTLCs forwarded to our node that will be claimed by this forward.
   // This is the canonical incoming HTLC representation.

@@ -19,6 +19,8 @@ use crate::util::proto_adapter::payment_to_proto;
 pub(crate) async fn handle_list_payments_request(
 	context: Arc<Context>, request: ListPaymentsRequest,
 ) -> Result<ListPaymentsResponse, LdkServerError> {
+	// TODO: Stop exposing backend cursors through the API. Wrap this raw LDK cursor and the
+	// forwarded-payment storage cursor in a versioned, RPC-bound server token.
 	let page_token = request.page_token.map(NodePageToken::new);
 	let page = context.node.list_payments(page_token)?;
 

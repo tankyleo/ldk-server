@@ -34,7 +34,7 @@ use ldk_node::lightning::util::ser::Writeable;
 use ldk_node::{Builder, CustomTlvRecord, Event, Node};
 use ldk_server_grpc::events;
 use ldk_server_grpc::events::{event_envelope, EventEnvelope};
-use ldk_server_grpc::types::{HtlcLocator, Payment};
+use ldk_server_grpc::types::Payment;
 use log::{debug, error, info};
 use prost::Message;
 use tokio::net::TcpListener;
@@ -53,7 +53,9 @@ use crate::service::NodeService;
 use crate::util::config::{load_config, ArgsConfig, ChainSource};
 use crate::util::logger::{LogConfig, ServerLogger};
 use crate::util::metrics::Metrics;
-use crate::util::proto_adapter::{forwarded_payment_to_proto, payment_to_proto};
+use crate::util::proto_adapter::{
+	forwarded_payment_to_proto, htlc_locator_to_proto, payment_to_proto,
+};
 use crate::util::tls::get_or_generate_tls_config;
 use crate::util::{create_dir_all_private, systemd, write_new};
 
@@ -595,18 +597,24 @@ fn main() {
 
 							let prev_htlcs = prev_htlcs
 								.into_iter()
-								.map(|htlc| HtlcLocator {
-									channel_id: htlc.channel_id.to_string(),
-									user_channel_id: htlc.user_channel_id.map(|u| u.0.to_string()),
-									node_id: htlc.node_id.map(|n| n.to_string()),
+								.map(|htlc| {
+									htlc_locator_to_proto(
+										htlc.channel_id,
+										htlc.amount_msat,
+										htlc.user_channel_id,
+										htlc.node_id,
+									)
 								})
 								.collect();
 							let next_htlcs = next_htlcs
 								.into_iter()
-								.map(|htlc| HtlcLocator {
-									channel_id: htlc.channel_id.to_string(),
-									user_channel_id: htlc.user_channel_id.map(|u| u.0.to_string()),
-									node_id: htlc.node_id.map(|n| n.to_string()),
+								.map(|htlc| {
+									htlc_locator_to_proto(
+										htlc.channel_id,
+										htlc.amount_msat,
+										htlc.user_channel_id,
+										htlc.node_id,
+									)
 								})
 								.collect();
 
@@ -616,7 +624,7 @@ fn main() {
 								total_fee_earned_msat,
 								skimmed_fee_msat,
 								claim_from_onchain_tx,
-								Some(outbound_amount_forwarded_msat),
+								outbound_amount_forwarded_msat,
 							);
 
 							let mut forwarded_payment_id = [0u8; 32];
@@ -774,24 +782,17 @@ fn send_payment_event(
 			if let Err(e) = event_sender.send(EventEnvelope { event: Some(event) }) {
 				debug!("No event subscribers connected, skipping event: {e}");
 			}
-
-			if let Err(e) = event_node.event_handled() {
-				error!("Failed to mark event as handled: {e}");
-			}
 		},
 		Ok(None) => {
 			error!("Unable to find payment with payment ID: {payment_id}");
-			if let Err(e) = event_node.event_handled() {
-				error!("Failed to mark event as handled: {e}");
-			}
 		},
 		Err(e) => {
 			error!("Failed to retrieve payment with payment ID {payment_id}: {e}");
-			if let Err(e) = event_node.event_handled() {
-				error!("Failed to mark event as handled: {e}");
-			}
 		},
 	}
+        if let Err(e) = event_node.event_handled() {
+                error!("Failed to mark event as handled: {e}");
+        }
 }
 
 fn send_channel_state_event(

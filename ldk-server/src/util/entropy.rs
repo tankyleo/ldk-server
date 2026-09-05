@@ -34,6 +34,7 @@ pub(crate) fn load_or_generate_node_entropy(storage_dir: &Path) -> io::Result<No
 			if let Some(parent) = mnemonic_path.parent() {
 				create_dir_all_private(parent)?;
 			}
+			// TODO: Generate with OsRng once bip39 supports rand 0.9.
 			let mnemonic = Mnemonic::generate(24).map_err(io::Error::other)?;
 			write_new(&mnemonic_path, format!("{}\n", mnemonic).as_bytes(), 0o600)?;
 			info!(

@@ -116,6 +116,76 @@ pub struct Onchain {
 	/// The confirmation status of this payment.
 	#[prost(message, optional, tag = "2")]
 	pub status: ::core::option::Option<ConfirmationStatus>,
+	/// The classification of this transaction, if known.
+	///
+	/// This will be unset for plain on-chain sends and records created before transaction
+	/// classification was available.
+	#[prost(message, optional, tag = "3")]
+	pub tx_type: ::core::option::Option<TransactionType>,
+}
+/// The classification of an on-chain transaction.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[cfg_attr(feature = "serde", serde(default))]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionType {
+	#[prost(oneof = "transaction_type::Kind", tags = "1, 2, 3, 4, 5, 6, 7")]
+	pub kind: ::core::option::Option<transaction_type::Kind>,
+}
+/// Nested message and enum types in `TransactionType`.
+pub mod transaction_type {
+	#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+	#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+	#[allow(clippy::derive_partial_eq_without_eq)]
+	#[derive(Clone, PartialEq, ::prost::Oneof)]
+	pub enum Kind {
+		/// A funding transaction establishing one or more new channels.
+		#[prost(message, tag = "1")]
+		Funding(super::TransactionChannels),
+		/// A transaction cooperatively closing a channel.
+		#[prost(message, tag = "2")]
+		CooperativeClose(super::TransactionChannel),
+		/// A transaction force-closing a channel.
+		#[prost(message, tag = "3")]
+		UnilateralClose(super::TransactionChannel),
+		/// An anchor transaction CPFP fee-bumping a closing transaction.
+		#[prost(message, tag = "4")]
+		AnchorBump(super::TransactionChannel),
+		/// A transaction resolving an output spendable by both us and our counterparty.
+		#[prost(message, tag = "5")]
+		Claim(super::TransactionChannel),
+		/// A transaction sweeping spendable outputs to the on-chain wallet.
+		#[prost(message, tag = "6")]
+		Sweep(super::TransactionChannels),
+		/// An interactively-negotiated funding transaction, such as a splice.
+		#[prost(message, tag = "7")]
+		InteractiveFunding(super::TransactionChannels),
+	}
+}
+/// Channels associated with an on-chain transaction.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[cfg_attr(feature = "serde", serde(default))]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionChannels {
+	#[prost(message, repeated, tag = "1")]
+	pub channels: ::prost::alloc::vec::Vec<TransactionChannel>,
+}
+/// A channel associated with an on-chain transaction.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[cfg_attr(feature = "serde", serde(default))]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransactionChannel {
+	/// The node ID of the channel counterparty.
+	#[prost(string, tag = "1")]
+	pub counterparty_node_id: ::prost::alloc::string::String,
+	/// The channel ID.
+	#[prost(string, tag = "2")]
+	pub channel_id: ::prost::alloc::string::String,
 }
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
@@ -301,13 +371,17 @@ pub struct HtlcLocator {
 	/// The channel that the HTLC was sent or received on.
 	#[prost(string, tag = "1")]
 	pub channel_id: ::prost::alloc::string::String,
+	/// The amount, in milli-satoshis, of the HTLC that was sent or received.
+	/// This can be unset for events serialized by LDK Node v0.7.0 and prior.
+	#[prost(uint64, optional, tag = "2")]
+	pub amount_msat: ::core::option::Option<u64>,
 	/// The `user_channel_id` for the channel.
 	/// This can be unset for older serialized events or if the payment was settled on-chain.
-	#[prost(string, optional, tag = "2")]
+	#[prost(string, optional, tag = "3")]
 	pub user_channel_id: ::core::option::Option<::prost::alloc::string::String>,
 	/// The node id of the counterparty for this HTLC.
 	/// This can be unset for older serialized events.
-	#[prost(string, optional, tag = "3")]
+	#[prost(string, optional, tag = "4")]
 	pub node_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 /// A forwarded payment through our node.
@@ -348,8 +422,8 @@ pub struct ForwardedPayment {
 	/// The final amount forwarded, in milli-satoshis, after the fee is deducted.
 	///
 	/// The caveat described above the `total_fee_earned_msat` field applies here as well.
-	#[prost(uint64, optional, tag = "4")]
-	pub outbound_amount_forwarded_msat: ::core::option::Option<u64>,
+	#[prost(uint64, tag = "4")]
+	pub outbound_amount_forwarded_msat: u64,
 	/// The set of incoming HTLCs forwarded to our node that will be claimed by this forward.
 	/// This is the canonical incoming HTLC representation.
 	#[prost(message, repeated, tag = "5")]
